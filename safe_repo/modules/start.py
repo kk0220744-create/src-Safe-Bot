@@ -10,6 +10,53 @@ from safe_repo.core.mongo.users_db import add_user, get_user
 from config import OWNER_ID, CLONE_LOG_CHANNEL
 from datetime import datetime, timedelta, timezone
 
+YOUTUBE_CHANNEL_URL = "https://www.youtube.com/@GKWITHRK096"
+
+
+def youtube_subscription_buttons(user_id):
+    return InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("Subscribe on YouTube", url=YOUTUBE_CHANNEL_URL)],
+            [InlineKeyboardButton("I have subscribed", callback_data=f"youtube_subscribed:{user_id}")],
+        ]
+    )
+
+
+def youtube_subscription_message(mention):
+    return (
+        f"Welcome {mention}!\n\n"
+        "YouTube channel subscribe karna zaroori hai to activate your free premium plan.\n\n"
+        "Subscribe button par click karein, phir **I have subscribed** button dabayein.\n\n"
+        "Note: YouTube subscription automatic verify nahi hoti; confirmation ke baad 1-day trial activate hoga."
+    )
+
+
+async def activate_one_day_trial(message, user):
+    user_id = user.id
+    expire_date = datetime.now(timezone.utc) + timedelta(days=1)
+    await add_premium(user_id, expire_date, plan_type="1_day_trial")
+    if not await get_user(user_id):
+        await add_user(user_id)
+
+    await message.reply_text(
+        f"🎉 **Premium activated successfully!**\n\n"
+        f"📋 **Plan:** 1-day premium trial\n"
+        f"⏰ **Trial Expires:** {expire_date.strftime('%Y-%m-%d %H:%M:%S UTC')}\n\n"
+        "You can now use the bot's premium features."
+    )
+    try:
+        await app.send_message(
+            chat_id=CLONE_LOG_CHANNEL,
+            text=(
+                "🎁 **NEW USER 1-DAY FREE TRIAL**\n\n"
+                f"👤 **User:** {user.first_name or 'User'} ({user_id})\n"
+                f"📱 **User ID:** `{user_id}`\n"
+                f"📅 **Expires:** {expire_date.strftime('%Y-%m-%d %H:%M:%S UTC')}"
+            ),
+        )
+    except Exception as error:
+        print(f"Failed to send trial alert: {error}")
+
 # ------------------- Start-Buttons ------------------- #
 
 buttons = InlineKeyboardMarkup(
@@ -27,51 +74,14 @@ async def start(_, message):
         return
     
     user_id = message.from_user.id
-    user_name = message.from_user.first_name or "User"
-    
-    # Check if user is new and give free trial
+    # Existing premium users and returning users can continue normally.
     premium_check = await check_premium(user_id)
     if premium_check is None:
-        # User doesn't have premium, give a one-day free trial.
-        expire_date = datetime.now(timezone.utc) + timedelta(days=1)
-        await add_premium(user_id, expire_date, plan_type="1_day_trial")
-        
-        # Add user to users_db if not already
-        user_exists = await get_user(user_id)
-        if not user_exists:
-            await add_user(user_id)
-        
-        # Send welcome message with trial info
-        trial_msg = f"""🎉 **Welcome to Safe Repo Bot!**
-
-👋 Hello {message.from_user.mention}!
-
-You've been granted a **1-day FREE TRIAL** of our premium features! 🚀
-
-⏰ **Trial Expires:** {expire_date.strftime('%Y-%m-%d %H:%M:%S UTC')}
-
-📋 **Plan:** 1-day premium trial
-
-Enjoy full access to all premium features during your trial period.
-
-For any questions, contact support: @Radheyojha096"""
-        
-        await message.reply_text(trial_msg)
-        
-        # Send alert to log channel
-        try:
-            log_msg = f"""🎁 **NEW USER FREE TRIAL**
-
-👤 **User:** {user_name} ({user_id})
-📱 **User ID:** `{user_id}`
-⏰ **Trial Granted:** 15 days
-📅 **Expires:** {expire_date.strftime('%Y-%m-%d %H:%M:%S UTC')}
-
-By Radhey Kishan Ojha
-📞 https://t.me/Radheyojha096"""
-            await app.send_message(chat_id=CLONE_LOG_CHANNEL, text=log_msg)
-        except Exception as e:
-            print(f"Failed to send trial alert: {e}")
+        await message.reply_text(
+            youtube_subscription_message(message.from_user.mention),
+            reply_markup=youtube_subscription_buttons(user_id),
+        )
+        return
     
     # Check if user has an active session (logged in)
     data = await mdb.get_data(message.from_user.id)
@@ -88,6 +98,21 @@ By Radhey Kishan Ojha
              f"\n\n{status_text}\n\n💭 **Daily Motivation:**\n\"{quote}\"",
         reply_markup=buttons
     )
+
+
+@app.on_callback_query(filters.regex(r"^youtube_subscribed:\d+$"))
+async def youtube_subscribed_callback(_, callback_query):
+    expected_user_id = int(callback_query.data.split(":", 1)[1])
+    if callback_query.from_user.id != expected_user_id:
+        await callback_query.answer("This button belongs to another user.", show_alert=True)
+        return
+
+    if await check_premium(expected_user_id):
+        await callback_query.answer("Your premium plan is already active.", show_alert=True)
+        return
+
+    await callback_query.answer("Subscription confirmed. Activating your plan...")
+    await activate_one_day_trial(callback_query.message, callback_query.from_user)
 
 @app.on_callback_query(filters.regex('show_help'))
 async def show_help_callback(_, callback_query):
