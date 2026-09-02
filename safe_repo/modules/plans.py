@@ -6,8 +6,8 @@ import datetime, time
 from safe_repo import app
 from config import OWNER_ID
 from safe_repo.core.func import get_seconds
-from safe_repo.core.mongo import plans_db  
-from pyrogram import filters 
+from safe_repo.core.mongo import plans_db
+from pyrogram import filters
 
 
 
@@ -105,7 +105,8 @@ async def give_premium_cmd_handler(client, message):
         seconds = await get_seconds(time)
         if seconds > 0:
             expiry_time = datetime.datetime.now() + datetime.timedelta(seconds=seconds)  
-            await plans_db.add_premium(user_id, expiry_time)  
+            plan_type = "15_days" if message.command[2:4] == ["15", "days"] else "time_limited"
+            await plans_db.add_premium(user_id, expiry_time, plan_type=plan_type)
             data = await plans_db.check_premium(user_id)
             expiry = data.get("expire_date")   
             expiry_str_in_ist = expiry.astimezone(pytz.timezone("Asia/Kolkata")).strftime("%d-%m-%Y\n⏱️ ᴇxᴘɪʀʏ ᴛɪᴍᴇ : %I:%M:%S %p")         
@@ -120,5 +121,141 @@ async def give_premium_cmd_handler(client, message):
             await message.reply_text("Invalid time format. Please use '1 day for days', '1 hour for hours', or '1 min for minutes', or '1 month for months' or '1 year for year'")
     else:
         await message.reply_text("Usage : /add user_id time (e.g., '1 day for days', '1 hour for hours', or '1 min for minutes', or '1 month for months' or '1 year for year')")
+
+
+async def _format_plan_users(client, title, users, include_expiry=False):
+    """Format a compact admin report without failing on deleted Telegram users."""
+    if not users:
+        return f"{title}\n\nNo users found."
+
+    lines = [title, ""]
+    for index, entry in enumerate(users, 1):
+        user_id = entry if isinstance(entry, int) else entry["user_id"]
+        try:
+            user = await client.get_users(user_id)
+            display_name = user.mention
+        except Exception:
+            display_name = f"User {user_id}"
+        line = f"{index}. {display_name} (ID: {user_id})"
+        if include_expiry and isinstance(entry, dict):
+            line += f" - Expires: {entry.get('expire_date', 'unknown')}"
+        lines.append(line)
+    return "\n".join(lines)
+
+
+@app.on_message(filters.command("plan") & filters.user(OWNER_ID))
+async def plan_management_command(client, message):
+    """Show premium plan reports for administrators."""
+    await plans_db.check_and_remove_expired_users()
+    command_args = [argument.lower() for argument in message.command[1:]]
+    lifetime = await plans_db.get_lifetime_users()
+    fifteen_day = await plans_db.get_15_day_users()
+    time_limited = await plans_db.get_time_limited_users()
+
+    if not command_args or command_args[0] in ("help", "summary"):
+        await message.reply_text(
+            "📊 Premium plan summary\n\n"
+            f"Lifetime users: {len(lifetime)}\n"
+            f"15-day users: {len(fifteen_day)}\n"
+            f"Other time-limited users: {len(time_limited) - len(fifteen_day)}\n"
+            f"Active premium users: {len(lifetime) + len(time_limited)}\n\n"
+            "Commands:\n"
+            "/plan lifetime\n"
+            "/plan 15days\n"
+            "/plan active\n"
+            "/plan user <user_id>"
+        )
+        return
+
+    report_type = command_args[0]
+    if report_type == "lifetime":
+        await message.reply_text(await _format_plan_users(client, "⚜️ Lifetime premium users", lifetime))
+    elif report_type in ("15days", "15day", "trial"):
+        await message.reply_text(await _format_plan_users(client, "⏰ 15-day plan users", fifteen_day, include_expiry=True))
+    elif report_type == "active":
+        active_users = [
+            {"user_id": user_id, "plan_type": "lifetime", "expire_date": None}
+            for user_id in lifetime
+        ] + time_limited
+        await message.reply_text(await _format_plan_users(client, "✅ Active premium users", active_users, include_expiry=True))
+    elif report_type == "user" and len(command_args) == 2:
+        try:
+            user_id = int(command_args[1])
+        except ValueError:
+            await message.reply_text("Usage: /plan user <numeric_user_id>")
+            return
+        premium_data = await plans_db.check_premium(user_id)
+        if not premium_data:
+            await message.reply_text(f"No active premium plan found for user {user_id}.")
+            return
+        plan_name = "Lifetime" if premium_data.get("expire_date") is None else "Time-limited"
+        await message.reply_text(
+            f"👤 User ID: {user_id}\n"
+            f"Plan: {plan_name}\n"
+            f"Expires: {premium_data.get('expire_date') or 'Never'}"
+        )
+    else:
+        await message.reply_text("Usage: /plan, /plan lifetime, /plan 15days, /plan active, /plan user <user_id>")
+
+
+@app.on_message(filters.command("lifetime") & filters.user(OWNER_ID))
+async def lifetime_users(client, message):
+    users = await plans_db.get_lifetime_users()
+    if not users:
+        await message.reply_text("कोई लिफ़्टाइम प्रीमियम यूज़र नहीं हैं।")
+        return
+    text = "⚜️ **लिफ़्टाइम प्रीमियम यूज़र्स / Lifetime Premium Users**\n\n"
+    for i, uid in enumerate(users, 1):
+        try:
+            user = await client.get_users(uid)
+            mention = user.mention
+        except Exception:
+            mention = f"<code>{uid}</code>"
+        text += f"{i}. {mention} (ID: <code>{uid}</code>)\n"
+    await message.reply_text(text)
+
+
+@app.on_message(filters.command("timelimit") & filters.user(OWNER_ID))
+async def time_limited_users(client, message):
+    users = await plans_db.get_time_limited_users()
+    if not users:
+        await message.reply_text("कोई टाइम-लिमिटेड प्लान वाला यूज़र नहीं हैं।")
+        return
+    text = "⏰ **टाइम-लिमिटेड प्लान यूज़र्स / Time-Limited Plan Users**\n\n"
+    for i, entry in enumerate(users, 1):
+        uid = entry["user_id"]
+        try:
+            user = await client.get_users(uid)
+            mention = user.mention
+        except Exception:
+            mention = f"<code>{uid}</code>"
+        expiry = entry["expire_date"]
+        text += f"{i}. {mention} (ID: <code>{uid}</code> - Expires: <code>{expiry}</code>)\n"
+    await message.reply_text(text)
+
+
+@app.on_message(filters.command("active") & filters.user(OWNER_ID))
+async def active_members(client, message):
+    await plans_db.check_and_remove_expired_users()
+    details = await plans_db.get_all_premium_details()
+    if not details:
+        await message.reply_text("कोई एक्टिव प्रीमियम मंबर नहीं हैं।")
+        return
+    lifetime = [d for d in details if d["plan_type"] == "lifetime"]
+    time_limited = [d for d in details if d["plan_type"] == "time_limited"]
+    text = "✅ **एक्टिव प्रीमियम मंबर्स / Active Premium Members**\n\n"
+    text += f"⚜️ लिफ़्टाइम: {len(lifetime)}\n"
+    text += f"⏰ टाइम-लिमिटेड: {len(time_limited)}\n"
+    text += f"📊 कुल: {len(details)}\n\n"
+    for i, d in enumerate(time_limited, 1):
+        uid = d["user_id"]
+        try:
+            user = await client.get_users(uid)
+            mention = user.mention
+        except Exception:
+            mention = f"<code>{uid}</code>"
+        expiry = d["expire_date"]
+        text += f"{i}. {mention} (ID: <code>{uid}</code> - Expires: <code>{expiry}</code>)\n"
+    await message.reply_text(text)
 
   

@@ -63,6 +63,8 @@ async def safe_repo_boot():
         logger.info("=== Environment Variables for Stream Configuration ===")
         logger.info(f"PUBLIC_BASE_URL: {os.environ.get('PUBLIC_BASE_URL', 'NOT SET')}")
         logger.info(f"APP_URL: {os.environ.get('APP_URL', 'NOT SET')}")
+        logger.info(f"RAILWAY_PUBLIC_DOMAIN: {os.environ.get('RAILWAY_PUBLIC_DOMAIN', 'NOT SET')}")
+        logger.info(f"RAILWAY_STATIC_URL: {os.environ.get('RAILWAY_STATIC_URL', 'NOT SET')}")
         logger.info(f"RENDER_EXTERNAL_URL: {os.environ.get('RENDER_EXTERNAL_URL', 'NOT SET')}")
         logger.info(f"BASE_URL: {os.environ.get('BASE_URL', 'NOT SET')}")
         logger.info(f"PORT: {os.environ.get('PORT', '5000 (default)')}")

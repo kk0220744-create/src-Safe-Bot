@@ -45,6 +45,8 @@ def _get_base_url(base_url=None):
     env_url = (
         os.environ.get("PUBLIC_BASE_URL", "").strip()
         or os.environ.get("APP_URL", "").strip()
+        or os.environ.get("RAILWAY_PUBLIC_DOMAIN", "").strip()
+        or os.environ.get("RAILWAY_STATIC_URL", "").strip()
         or os.environ.get("RENDER_EXTERNAL_URL", "").strip()
         or os.environ.get("BASE_URL", "").strip()
     )

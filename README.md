@@ -80,6 +80,14 @@ python3 -m safe_repo
 - Click Deploy
 - Done ✅
 
+## Deploy on Railway
+
+- Deploy the repository as a web service using the included `Dockerfile`.
+- In Railway, open **Settings > Networking** and generate a public domain.
+- Railway's `RAILWAY_PUBLIC_DOMAIN` is detected automatically. You can also set `PUBLIC_BASE_URL` to `https://your-domain.up.railway.app`.
+- Keep the service listening on Railway's assigned `PORT` (the included `Dockerfile` and `app.py` already do this).
+- After sending a video to the bot, the reply includes a `Player` link and a direct stream link. The Player link supports browser playback and seeking through HTTP range requests.
+
 
 ## Koyeb Deployment
 

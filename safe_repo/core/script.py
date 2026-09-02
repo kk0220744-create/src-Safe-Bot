@@ -227,7 +227,11 @@ CMD_HELP_TXT = """
  🔹 /broadcast <text> - Broadcast message
  🔹 /announce <text> - Broadcast with forward tag
  🔹 /stats - View bot statistics
- 🔹 /plan - Manage subscription plans
+ 🔹 /plan - Premium summary
+    /plan lifetime - List lifetime users
+    /plan 15days - List 15-day users
+    /plan active - List all active users
+    /plan user <user_id> - Inspect one user
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 

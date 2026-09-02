@@ -34,7 +34,7 @@ async def start(_, message):
     if premium_check is None:
         # User doesn't have premium, give 15 days free trial
         expire_date = datetime.now(timezone.utc) + timedelta(days=15)
-        await add_premium(user_id, expire_date)
+        await add_premium(user_id, expire_date, plan_type="15_days_trial")
         
         # Add user to users_db if not already
         user_exists = await get_user(user_id)

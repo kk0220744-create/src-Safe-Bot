@@ -42,6 +42,19 @@ def test_save_stream_file_rejects_large_files(tmp_path):
     assert result is None
 
 
+def test_save_stream_file_uses_railway_public_domain(tmp_path, monkeypatch):
+    source = tmp_path / "sample.mp4"
+    source.write_bytes(b"test-media")
+    monkeypatch.delenv("PUBLIC_BASE_URL", raising=False)
+    monkeypatch.delenv("APP_URL", raising=False)
+    monkeypatch.setenv("RAILWAY_PUBLIC_DOMAIN", "my-bot.up.railway.app")
+
+    result = save_stream_file(str(source), cache_dir=str(tmp_path / "cache"))
+
+    assert result["player_url"].startswith("https://my-bot.up.railway.app/player/")
+    assert result["stream_url"].startswith("https://my-bot.up.railway.app/stream/")
+
+
 def test_append_stream_link_stores_catalog_entry(tmp_path):
     archive_path = tmp_path / "links.txt"
     entry_path = tmp_path / "catalog.json"
