@@ -88,6 +88,12 @@ python3 -m safe_repo
 - Keep the service listening on Railway's assigned `PORT` (the included `Dockerfile` and `app.py` already do this).
 - After sending a video to the bot, the reply includes a `Player` link and a direct stream link. The Player link supports browser playback and seeking through HTTP range requests.
 
+### Premium onboarding and archive
+
+- New users do not need to join the update channel and receive a 1-day premium trial with its expiry details.
+- Set `PREMIUM_ARCHIVE_CHANNEL` to a private Telegram channel ID. Processed media is copied there for administrators and approved lifetime members.
+- Keep that channel private and add only administrators/lifetime members; Telegram channel membership controls who can view its saved media.
+
 
 ## Koyeb Deployment
 

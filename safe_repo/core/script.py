@@ -229,6 +229,7 @@ CMD_HELP_TXT = """
  🔹 /stats - View bot statistics
  🔹 /plan - Premium summary
     /plan lifetime - List lifetime users
+    /plan 1day - List one-day trial users
     /plan 15days - List 15-day users
     /plan active - List all active users
     /plan user <user_id> - Inspect one user

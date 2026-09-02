@@ -92,6 +92,11 @@ async def get_15_day_users():
     ]
 
 
+async def get_1_day_users():
+    users = await get_time_limited_users()
+    return [user for user in users if user.get("plan_type") == "1_day_trial"]
+
+
 async def get_all_premium_details():
     lifetime = await get_lifetime_users()
     time_limited = await get_time_limited_users()

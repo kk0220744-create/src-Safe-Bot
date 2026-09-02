@@ -149,6 +149,7 @@ async def plan_management_command(client, message):
     await plans_db.check_and_remove_expired_users()
     command_args = [argument.lower() for argument in message.command[1:]]
     lifetime = await plans_db.get_lifetime_users()
+    one_day = await plans_db.get_1_day_users()
     fifteen_day = await plans_db.get_15_day_users()
     time_limited = await plans_db.get_time_limited_users()
 
@@ -156,11 +157,13 @@ async def plan_management_command(client, message):
         await message.reply_text(
             "📊 Premium plan summary\n\n"
             f"Lifetime users: {len(lifetime)}\n"
+            f"1-day trial users: {len(one_day)}\n"
             f"15-day users: {len(fifteen_day)}\n"
-            f"Other time-limited users: {len(time_limited) - len(fifteen_day)}\n"
+            f"Other time-limited users: {len(time_limited) - len(fifteen_day) - len(one_day)}\n"
             f"Active premium users: {len(lifetime) + len(time_limited)}\n\n"
             "Commands:\n"
             "/plan lifetime\n"
+            "/plan 1day\n"
             "/plan 15days\n"
             "/plan active\n"
             "/plan user <user_id>"
@@ -170,7 +173,9 @@ async def plan_management_command(client, message):
     report_type = command_args[0]
     if report_type == "lifetime":
         await message.reply_text(await _format_plan_users(client, "⚜️ Lifetime premium users", lifetime))
-    elif report_type in ("15days", "15day", "trial"):
+    elif report_type in ("1day", "1-day", "trial"):
+        await message.reply_text(await _format_plan_users(client, "🎁 1-day trial users", one_day, include_expiry=True))
+    elif report_type in ("15days", "15day"):
         await message.reply_text(await _format_plan_users(client, "⏰ 15-day plan users", fifteen_day, include_expiry=True))
     elif report_type == "active":
         active_users = [
@@ -195,7 +200,7 @@ async def plan_management_command(client, message):
             f"Expires: {premium_data.get('expire_date') or 'Never'}"
         )
     else:
-        await message.reply_text("Usage: /plan, /plan lifetime, /plan 15days, /plan active, /plan user <user_id>")
+        await message.reply_text("Usage: /plan, /plan lifetime, /plan 1day, /plan 15days, /plan active, /plan user <user_id>")
 
 
 @app.on_message(filters.command("lifetime") & filters.user(OWNER_ID))
@@ -242,7 +247,7 @@ async def active_members(client, message):
         await message.reply_text("कोई एक्टिव प्रीमियम मंबर नहीं हैं।")
         return
     lifetime = [d for d in details if d["plan_type"] == "lifetime"]
-    time_limited = [d for d in details if d["plan_type"] == "time_limited"]
+    time_limited = [d for d in details if d["plan_type"] != "lifetime"]
     text = "✅ **एक्टिव प्रीमियम मंबर्स / Active Premium Members**\n\n"
     text += f"⚜️ लिफ़्टाइम: {len(lifetime)}\n"
     text += f"⏰ टाइम-लिमिटेड: {len(time_limited)}\n"

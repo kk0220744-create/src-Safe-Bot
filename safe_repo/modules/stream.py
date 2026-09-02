@@ -9,7 +9,7 @@ import uuid
 from datetime import datetime
 from pyrogram import filters
 from safe_repo import app
-from config import STREAM_CHANNEL, STREAM_CHANNEL_USERNAME, CLONE_LOG_CHANNEL
+from config import STREAM_CHANNEL, STREAM_CHANNEL_USERNAME, CLONE_LOG_CHANNEL, PREMIUM_ARCHIVE_CHANNEL
 from safe_repo.core.media_links import append_stream_link, save_stream_file, read_stream_links
 from safe_repo.web.study import build_public_study_url
 
@@ -194,6 +194,25 @@ async def post_to_stream_channel(message):
         return None
 
 
+async def archive_media_for_premium(message):
+    """Copy processed media to the private admin/lifetime archive channel."""
+    if message is None or not PREMIUM_ARCHIVE_CHANNEL:
+        return False
+
+    for action in ("copy", "forward"):
+        try:
+            if action == "copy":
+                archived = await message.copy(PREMIUM_ARCHIVE_CHANNEL)
+            else:
+                archived = await message.forward(PREMIUM_ARCHIVE_CHANNEL)
+            if archived is not None:
+                return True
+        except Exception as error:
+            logger.debug(f"Premium archive {action} attempt failed: {error}")
+    logger.warning("Unable to archive processed media in premium archive channel")
+    return False
+
+
 async def build_public_stream_link(message, media_file=None):
     """Build a public stream link from local cache when possible, else fall back to a Telegram channel post for large or unsupported files."""
     if media_file and os.path.exists(media_file):
@@ -357,6 +376,7 @@ async def handle_direct_media(client, message):
             return
 
         logger.info(f"handle_direct_media: successfully downloaded media to {media_file}")
+        await archive_media_for_premium(message)
 
         try:
             await app.edit_message_text(
