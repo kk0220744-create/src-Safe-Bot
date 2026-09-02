@@ -82,6 +82,16 @@ async def single_link(_, message):
 
 
 users_loop = {}
+def is_transient_network_error(error):
+    """Identify failures that should wait and retry instead of skipping a link."""
+    if isinstance(error, (ConnectionError, TimeoutError, OSError, FloodWait)):
+        return True
+    error_name = type(error).__name__.lower()
+    error_text = str(error).lower()
+    return any(
+        marker in error_name or marker in error_text
+        for marker in ("network", "connection", "timeout", "timed out", "unavailable")
+    )
 
 @app.on_message(filters.command("settings"))
 async def settings_command(_, message):
@@ -385,11 +395,27 @@ async def batch_link(_, message):
                         else:
                             url = f"https://t.me/c/{b_chat}/{i}" if isinstance(b_chat, int) else f"https://t.me/{b_chat}/{i}"
 
-                        # Process the message
-                        await get_msg(userbot, user_id, msg.id, url, 0, message, True)
-                        
-                        # Increment processed count
+                        # Keep this item pending during temporary network outages.
+                        while True:
+                            try:
+                                await get_msg(userbot, user_id, msg.id, url, 0, message, True)
+                                break
+                            except FloodWait as flood_wait:
+                                await msg.edit_text(
+                                    f"Network limit reached. Retrying this item in {flood_wait.x} seconds..."
+                                )
+                                await asyncio.sleep(flood_wait.x)
+                            except Exception as network_error:
+                                if not is_transient_network_error(network_error):
+                                    raise
+                                await msg.edit_text(
+                                    "Network unavailable. This item is saved and will retry automatically..."
+                                )
+                                await asyncio.sleep(30)
+
+                        # Increment only after the item completes successfully.
                         processed_count += 1
+
                         sleep_msg = await app.send_message(message.chat.id, "Sleeping for 10 seconds to avoid flood...")
                         await asyncio.sleep(8)
                         await sleep_msg.delete()
