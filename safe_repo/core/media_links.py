@@ -47,14 +47,34 @@ def _get_base_url(base_url=None):
         or os.environ.get("APP_URL", "").strip()
         or os.environ.get("RAILWAY_PUBLIC_DOMAIN", "").strip()
         or os.environ.get("RAILWAY_STATIC_URL", "").strip()
-        or os.environ.get("RENDER_EXTERNAL_URL", "").strip()
         or os.environ.get("BASE_URL", "").strip()
+        or os.environ.get("RENDER_EXTERNAL_URL", "").strip()
     )
 
     if env_url:
-        # Ensure it's a valid URL (has protocol)
+        # If user provided a host without scheme, assume https
         if not env_url.startswith(("http://", "https://")):
             env_url = "https://" + env_url
+
+        # Append explicit port if provided via env (e.g., PORT or RAILWAY_PORT)
+        port = os.environ.get("PORT") or os.environ.get("RAILWAY_PORT") or os.environ.get("SERVER_PORT")
+        if port:
+            try:
+                port_int = int(str(port))
+            except Exception:
+                port_int = None
+            if port_int:
+                # Only append if URL has no explicit port
+                # e.g. https://example.com -> https://example.com:5000
+                from urllib.parse import urlparse, urlunparse
+
+                parsed = urlparse(env_url)
+                netloc = parsed.netloc
+                if ":" not in netloc:
+                    netloc = f"{netloc}:{port_int}"
+                    parsed = parsed._replace(netloc=netloc)
+                    env_url = urlunparse(parsed)
+
         return env_url.rstrip("/")
 
     # Fallback to localhost only if explicitly in development mode
