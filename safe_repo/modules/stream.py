@@ -260,9 +260,10 @@ def build_public_study_link(metadata=None, base_url=None):
             or os.environ.get("APP_URL")
             or os.environ.get("RAILWAY_PUBLIC_DOMAIN")
             or os.environ.get("RAILWAY_STATIC_URL")
-            or os.environ.get("RENDER_EXTERNAL_URL")
             or os.environ.get("BASE_URL")
-            or "https://save-by-radhey.onrender.com"
+            or os.environ.get("RENDER_EXTERNAL_URL")
+            or os.environ.get("DEFAULT_BASE_URL")
+            or "/"
         ).strip()
 
     if subject and date and title:
